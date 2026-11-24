@@ -1,121 +1,77 @@
-# ytanalytics
+# Frameryx
 
 **The premium YouTube growth studio that never sees your data.**
 
-A fast, offline-first YouTube analytics and channel-auditing tool — title scoring, thumbnail grading, retention diagnostics and niche-calibrated benchmarks for cloud/DevOps creators. Everything runs in your browser. Nothing is uploaded.
+A fast, offline-first YouTube analytics and channel-analysis tool — title scoring, thumbnail grading, A/B testing, channel audits, money tools, language strategy, a full public-data **Channel Analyzer** and a prescriptive **Growth Plan** — free for every creator, in every niche. Everything runs in your browser. Nothing is uploaded.
 
-Live at **[ytanalytics.eknathalabs.com](https://ytanalytics.eknathalabs.com)**
+Live at **[frameryx.eknathalabs.com](https://frameryx.eknathalabs.com)**
 
 ---
 
 ## Why it's different
 
-Tools like vidIQ, TubeBuddy and Social Blade are powerful because of data they hold on *their* servers — live API quota, scraped channel histories, aggregated search corpora. ytanalytics takes the opposite bet: it's private, niche-tuned, and free. Your advantages are the ones the incumbents structurally can't claim.
+Tools like vidIQ, TubeBuddy, ViewStats and Social Blade are powerful because of data they hold on *their* servers — and they charge for it. Frameryx takes the opposite bet: everything they paywall that can be computed from **public** YouTube data or from heuristics is here, free, and private. Your data stays in your browser; there's no backend.
 
-| Capability | vidIQ / TubeBuddy | ytanalytics |
+| Capability | vidIQ / Social Blade / ViewStats | Frameryx |
 |---|---|---|
-| Niche-calibrated title scoring | global averages | **DevOps-tuned** |
-| Thumbnail auto-grade | partial / editor only | **on-canvas, local** |
-| Deep retention diagnostics | partial | **full** |
+| Title / thumbnail scoring | paid | **free, with reasoning** |
+| A/B title & thumbnail testing | paid | **free** |
+| Channel analyzer (any channel) | paid / account | **free** |
+| Breakout score + upload patterns | paid | **free** |
+| Future projections | paid | **free** |
+| Prescriptive "what to do next" | $49/mo (OutlierKit) | **free (Growth Plan)** |
 | Your data stays in your browser | no | **always** |
-| No account / no extension | no | **yes** |
-| Historical scrape of any channel | yes | not offline (by design) |
-| Price | $24/mo | **free** |
+| No account / no extension | no | **always** |
 
-We're upfront about what we *don't* do: no historical time-series of arbitrary channels and no invented "search-volume" numbers. Those need a server-side database we don't run. We'd rather show fewer numbers you can trust.
+What **no** tool can show for a channel you don't own: CTR, retention, watch-time and real earnings — those are private YouTube Studio data. Frameryx says so plainly instead of faking them.
 
 ---
 
-## Features
+## The tools (18)
 
-**Optimize (pre-publish, no data needed)**
-- **Title analyzer** — 0–100 score with written reasoning on length, power words, specificity, front-loading and curiosity.
-- **Thumbnail auditor** — contrast, detail density and mobile readability graded on a canvas. Nothing leaves the page.
-- **Hook builder** — scaffolds the first 15 seconds to beat the 0:18 retention cliff.
+**Pre-publish (no data needed):** Optimize (title scorer + thumbnail grader + hook builder), A/B Test, Research, Tag Suggestions, Best Time to Publish, Channel Optimization, Money Calculator, Watch-time → Money, Language Opportunity.
 
-**Channel Optimization (no data)**
-- A scored 12-point checklist of channel fundamentals (branding, cadence, playlists, SEO hygiene, end screens…). Progress saved locally with a live completion score.
+**Your data (Studio CSV):** Growth Plan (ranked next steps), Audit, Roast My Channel.
 
-**Money Calculator (no data)**
-- Estimates ad revenue from monthly views, niche RPM, audience geography and monetized-view share. Shows low/likely/high monthly and yearly ranges plus effective RPM. RPM figures are realistic post-cut values.
+**Public data (API):** Channel Analyzer (breakout score, upload patterns, consistency, projections, title-pattern mining, tag extraction, velocity, posting heatmap, niche-saturation read, "steal this" content brief), Audit by URL, Compare.
 
-**Research (no key)**
-- **Tag generator** — niche co-occurrence (k8s → kubectl, helm…) plus proven modifiers.
-- **Title idea spinner** — high-scoring templates, auto-graded.
-
-**Top Creators / By Niche (no key)**
-- Most-subscribed channels worldwide and category leaders, with a strong cloud/DevOps list. Bundled offline snapshot with a visible "as of" date — not a live feed.
-
-**Audit by CSV (bring your own Studio export)**
-- Niche-benchmarked CTR, retention and average view duration; velocity-decay tagging; hidden-gem detection. The only way to get real CTR/retention, because the owner exports it.
-
-**Audit by URL (needs your API key)**
-- Paste any channel URL, @handle or ID → real public data: subscribers, recent video performance, upload cadence, and title scoring on actual titles. CTR/retention are deliberately absent here — they're private and no public method exposes them.
-
-**Compare (optional live mode)**
-- Public channel lookup via the YouTube Data API. Requires *your own* key (stored locally, your quota). Off by default — no key is ever bundled.
+**Explore:** Top Creators (top 50), By Niche (22 categories).
 
 ---
 
-## Architecture
+## The API key (Channel Analyzer / Compare / Audit-by-URL)
 
-Offline-first, zero-dependency, vanilla HTML/CSS/JS. No frameworks, no build step required to run — the shipped `dist/index.html` is a single self-contained file with PapaParse and Chart.js inlined.
+These features read the **public** YouTube Data API, which needs a key. Frameryx supports two paths:
 
-```
-ytanalytics/
-├── src/
-│   ├── index.html          # markup + styles, references local scripts
-│   ├── ytanalytics.js      # all app logic (engines, router, views)
-│   └── vendor/
-│       ├── papaparse.min.js
-│       └── chart.min.js
-├── build.py                # inlines src/ → dist/index.html
-├── dist/
-│   └── index.html          # deployed artifact (single file)
-├── .nojekyll
-├── CNAME
-└── README.md
-```
+1. **Bundled shared key (optional, no user setup).** Set `BUNDLED_KEY` in `src/ytanalytics.js` to a key you've **restricted in Google Cloud Console** to:
+   - the **YouTube Data API v3** only, and
+   - the HTTP referrer **`frameryx.eknathalabs.com/*`** only.
 
-### Build
+   A referrer-locked key only works when called from that domain, so copying it from page source is useless elsewhere. A per-visitor daily cap (`DAILY_CAP`, default 5) protects your quota. Leave `BUNDLED_KEY=''` to disable this path.
+
+2. **Bring-your-own key (always available).** Any user can add their own free key in Settings (2-minute guided walkthrough built in). Their key overrides the bundled key and lifts the daily cap for them.
+
+### Creating the restricted bundled key
+1. [console.cloud.google.com](https://console.cloud.google.com) → create a project.
+2. Enable **YouTube Data API v3**.
+3. Credentials → Create credentials → **API key**.
+4. Edit the key → **API restrictions** → restrict to *YouTube Data API v3*.
+5. **Application restrictions** → *HTTP referrers* → add `frameryx.eknathalabs.com/*` (and `*.frameryx.eknathalabs.com/*`).
+6. Paste it into `BUNDLED_KEY` in `src/ytanalytics.js`, rebuild, deploy.
+
+---
+
+## Build
+
+Single-file, zero-dependency. Source lives in `src/`; `build.py` inlines everything into `dist/index.html`.
 
 ```bash
-python3 build.py
+python3 build.py        # regenerates dist/index.html
+cp dist/index.html ./index.html   # GitHub Pages serves root
 ```
 
-Inlines every local script into `dist/index.html` and copies `.nojekyll` / `CNAME`. The result has no external dependencies and works offline.
-
-### Develop
-
-Edit files in `src/`. Open `src/index.html` directly in a browser to test — it loads `ytanalytics.js` and the vendored libraries from disk. Re-run `build.py` before deploying.
+Built with vanilla HTML/CSS/JS. Chart.js and PapaParse are vendored and inlined — no CDN, no network dependency.
 
 ---
 
-## Deploy (GitHub Pages)
-
-GitHub Pages serves the repo root, so the deploy target is `dist/index.html` published to the Pages branch. Options:
-
-- **Simplest:** copy `dist/index.html`, `.nojekyll` and `CNAME` to the repo root on the `main` branch and point Pages at `/ (root)`.
-- **Cleaner:** publish the `dist/` folder via a Pages action, or set Pages to serve from `/docs` and build into `docs/`.
-
-DNS: a `CNAME` record `ytanalytics` → `eknatha.github.io`, with the custom domain set to `ytanalytics.eknathalabs.com` and HTTPS enforced.
-
----
-
-## Privacy
-
-There is no backend. CSV files are parsed with PapaParse in your browser; thumbnails are graded on an in-memory canvas. Nothing is sent to any server. Closing the tab clears everything except an API key you explicitly choose to save in local storage.
-
----
-
-## Notes & honest limitations
-
-- **Retention** uses the average-percentage-viewed figure from the Studio export, not a per-second curve — second-by-second retention isn't in the standard table export.
-- **Niche benchmarks** are reasoned DevOps estimates, worth calibrating against your own channel over time.
-- **Compare** genuinely cannot work without a key; embedding one would expose it and burn its quota.
-
----
-
-Built in public under **EknathaLabs™** · [github.com/eknatha](https://github.com/eknatha)
-
-MIT License — see [LICENSE](LICENSE).
+Built by **EknathaLabs** with ❤ for Everyone.

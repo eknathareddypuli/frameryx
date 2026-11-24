@@ -1,47 +1,41 @@
-# Push this repo to GitHub
+# Deploy Frameryx
 
-## 1. Create the empty repo
-Go to https://github.com/new
-- Owner: eknatha
-- Name: ytanalytics
-- Public
-- Do NOT initialize with README/.gitignore/license (this repo has them)
+The repo already exists at **github.com/eknathareddypuli/frameryx**. You're updating it.
 
-## 2. Push from this folder
-```bash
-git init
-git add .
-git commit -m "ytanalytics: offline-first YouTube growth studio"
-git branch -M main
-git remote add origin https://github.com/eknatha/ytanalytics.git
-git push -u origin main
-```
-
-## 3. Make GitHub Pages serve the built file
-Pages serves the repo root, but the deployable artifact lives in dist/.
-Easiest path — copy the build output to root before committing:
+## 1. Replace files and deploy
+From this folder, copy the built file to root (GitHub Pages serves the repo root):
 
 ```bash
-cp dist/index.html ./index.html
-git add index.html && git commit -m "deploy: built index.html at root"
+python3 build.py                     # regenerate dist/index.html from src/
+cp dist/index.html ./index.html      # root file Pages serves
+git add -A
+git commit -m "Rebrand to Frameryx; add Channel Analyzer (breakout, patterns, projections, steal-this brief) + dual-key API"
 git push
 ```
 
-Then: repo Settings -> Pages -> Source: Deploy from a branch -> main -> / (root) -> Save.
+## 2. GitHub Pages
+Settings → Pages → Source: Deploy from a branch → `main` → `/ (root)` → Save.
+(`.nojekyll` and `CNAME` are already at root. CNAME = `frameryx.eknathalabs.com`.)
 
-(.nojekyll and CNAME are already at root.)
+## 3. DNS
+At your DNS provider, add a CNAME record:
+- Host: `frameryx`
+- Value: `eknathareddypuli.github.io`
 
-## 4. DNS
-Add a CNAME record at your DNS provider:
-- Host: ytanalytics
-- Value: eknatha.github.io
+Then Settings → Pages → Custom domain: `frameryx.eknathalabs.com` → Enforce HTTPS.
 
-Settings -> Pages -> Custom domain: ytanalytics.eknathalabs.com -> Enforce HTTPS.
+## 4. (Optional) Enable the no-setup shared key
+To make the Channel Analyzer work for visitors without their own key, create a
+**referrer-locked** key (see README → "Creating the restricted bundled key"),
+paste it into `BUNDLED_KEY` in `src/ytanalytics.js`, then `python3 build.py`,
+`cp dist/index.html ./index.html`, commit and push.
+
+Without it, the analyzer simply prompts users to add their own free key in
+Settings — nothing breaks.
 
 ## Editing later
-Edit files in src/, then:
+Edit files in `src/`, then:
 ```bash
-python3 build.py
-cp dist/index.html ./index.html
+python3 build.py && cp dist/index.html ./index.html
 git commit -am "update" && git push
 ```

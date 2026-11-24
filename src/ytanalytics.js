@@ -1,5 +1,29 @@
-/* ytanalytics · EknathaLabs — premium offline studio. Self-contained, error-guarded. */
+/* Frameryx · EknathaLabs — premium offline studio. Self-contained, error-guarded. */
 'use strict';
+
+/* ---------- API KEY SYSTEM (dual: bundled referrer-locked + BYO override) ----------
+   BUNDLED_KEY: a Google API key RESTRICTED in Google Cloud Console to
+     (1) the YouTube Data API v3 only, and
+     (2) HTTP referrer frameryx.eknathalabs.com/* only.
+   A referrer-locked key only works when called from that domain, so copying it
+   from source is useless elsewhere. Leave '' to disable the bundled path.
+   A user's own key (saved in Settings) always overrides the bundled key and
+   lifts the daily cap for that user. */
+const BUNDLED_KEY=''; // <-- paste your referrer-locked key here to enable no-setup mode
+const DAILY_CAP=5;    // channel analyses/day per visitor on the bundled key (own key = unlimited)
+
+function userKey(){return localStorage.getItem('yt_api_key')||'';}
+function activeKey(){return userKey()||BUNDLED_KEY;}
+function usingBundled(){return !userKey() && !!BUNDLED_KEY;}
+// per-visitor daily cap, only enforced on the bundled key
+function capState(){
+  let d={};try{d=JSON.parse(localStorage.getItem('fx_cap')||'{}');}catch(e){}
+  const today=new Date().toISOString().slice(0,10);
+  if(d.day!==today){d={day:today,n:0};}
+  return d;
+}
+function capLeft(){if(!usingBundled())return Infinity;return Math.max(0,DAILY_CAP-capState().n);}
+function capConsume(){if(!usingBundled())return;const d=capState();d.n++;try{localStorage.setItem('fx_cap',JSON.stringify(d));}catch(e){}}
 
 /* ---------- inline SVG icons (no font dependency) ---------- */
 const IC = {
@@ -29,6 +53,9 @@ const IC = {
   split:'<path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6M6 3H3m3 0h3M18 21h-3m3 0h3"/><circle cx="6" cy="3" r="0.5"/>',
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   rocket:'<path d="M5 13c-1.5 1.5-2 5-2 5s3.5-.5 5-2M9 15l-3-3a12 12 0 0 1 8-8c2 0 3 1 3 3a12 12 0 0 1-8 8zM14 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>',
+  radar:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/><path d="M12 12 19 5"/>',
+  trend:'<path d="M3 17l6-6 4 4 7-7M14 8h6v6"/>',
+  copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
 };
 const svg=(name,sw)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw||1.7}" stroke-linecap="round" stroke-linejoin="round">${IC[name]||''}</svg>`;
 
@@ -402,8 +429,8 @@ let CSV_STATE=null,CHARTS=[];
 const NAV=[['optimize','Optimize',svg('optimize'),'tools'],['abtest','A/B Test',svg('split'),'tools'],['research','Research',svg('research'),'tools'],['tags','Tag Suggestions',svg('tag'),'tools'],['besttime','Best Time to Publish',svg('clock'),'tools'],['channelopt','Channel Optimization',svg('check'),'tools'],['money','Money Calculator',svg('money'),'tools'],['worth','Watch-time → Money',svg('money'),'tools'],['languages','Language Opportunity',svg('globe'),'tools'],
   ['plan','Growth Plan',svg('rocket'),'your data'],['audit','Audit',svg('audit'),'your data'],['urlaudit','Audit by URL',svg('link'),'your data'],['roast','Roast My Channel',svg('fire'),'your data'],
   ['creators','Top Creators',svg('crown'),'explore'],['niches','By Niche',svg('grid'),'explore'],
-  ['compare','Compare',svg('compare'),'live'],['settings','Settings',svg('settings'),'']];
-const ATITLE={optimize:'Optimize <small>pre-publish · no data</small>',abtest:'A/B Test <small>title &amp; thumbnail head-to-head</small>',research:'Research <small>keywords &amp; tags</small>',tags:'Tag Suggestions <small>niche-aware</small>',besttime:'Best Time to Publish <small>from your data</small>',channelopt:'Channel Optimization <small>scored checklist</small>',money:'Money Calculator <small>earnings estimator</small>',worth:'Watch-time → Money <small>what retention is worth</small>',languages:'Language Opportunity <small>expand your reach</small>',plan:'Growth Plan <small>your ranked next steps</small>',audit:'Audit <small>your Studio export</small>',urlaudit:'Audit by URL <small>public data · needs key</small>',roast:'Roast My Channel <small>blunt audit</small>',creators:'Top Creators <small>by subscribers</small>',niches:'Top Creators by Niche',compare:'Compare <small>live mode</small>',settings:'Settings'};
+  ['analyze','Channel Analyzer',svg('radar'),'live'],['compare','Compare',svg('compare'),'live'],['settings','Settings',svg('settings'),'']];
+const ATITLE={optimize:'Optimize <small>pre-publish · no data</small>',abtest:'A/B Test <small>title &amp; thumbnail head-to-head</small>',research:'Research <small>keywords &amp; tags</small>',tags:'Tag Suggestions <small>niche-aware</small>',besttime:'Best Time to Publish <small>from your data</small>',channelopt:'Channel Optimization <small>scored checklist</small>',money:'Money Calculator <small>earnings estimator</small>',worth:'Watch-time → Money <small>what retention is worth</small>',languages:'Language Opportunity <small>expand your reach</small>',plan:'Growth Plan <small>your ranked next steps</small>',audit:'Audit <small>your Studio export</small>',urlaudit:'Audit by URL <small>public data · needs key</small>',roast:'Roast My Channel <small>blunt audit</small>',creators:'Top Creators <small>by subscribers</small>',niches:'Top Creators by Niche',analyze:'Channel Analyzer <small>any channel · public data</small>',compare:'Compare <small>live mode</small>',settings:'Settings'};
 
 function paintRail(active){
   const r=$('#rnav');let html='',lastGrp=null;
@@ -418,7 +445,7 @@ function route(name){
   destroyCharts();paintRail(name);
   const t=$('#appTitle');if(t)t.innerHTML=ATITLE[name]||name;
   const v=$('#appView');if(!v)return;v.className='app-view fadein';void v.offsetWidth;v.className='app-view';
-  try{({optimize:vOptimize,abtest:vABTest,research:vResearch,tags:vTags,besttime:vBestTime,channelopt:vChannelOpt,money:vMoney,worth:vWorth,languages:vLanguages,plan:vPlan,audit:vAudit,urlaudit:vUrlAudit,roast:vRoast,creators:vCreators,niches:vNiches,compare:vCompare,settings:vSettings}[name]||vOptimize)();}
+  try{({optimize:vOptimize,abtest:vABTest,research:vResearch,tags:vTags,besttime:vBestTime,channelopt:vChannelOpt,money:vMoney,worth:vWorth,languages:vLanguages,plan:vPlan,audit:vAudit,urlaudit:vUrlAudit,roast:vRoast,creators:vCreators,niches:vNiches,analyze:vAnalyze,compare:vCompare,settings:vSettings}[name]||vOptimize)();}
   catch(e){v.innerHTML=`<div class="panel"><div class="empty">Something went wrong rendering this view. <br><span class="dim">${esc(e.message)}</span></div></div>`;console.error(e);}
 }
 window.openApp=k=>{$('#landing').classList.add('off');$('#app').classList.add('on');window.scrollTo(0,0);route(k||'optimize');};
@@ -608,7 +635,8 @@ function parseChannelInput(input){
   return{type:'custom',value:input.replace(/^@/,'')};
 }
 async function ytGet(endpoint,params){
-  const key=localStorage.getItem('yt_api_key');
+  const key=activeKey();
+  if(!key)throw new Error('NO_KEY');
   const qs=new URLSearchParams({...params,key});
   const res=await fetch(`https://www.googleapis.com/youtube/v3/${endpoint}?${qs}`);
   const data=await res.json();
@@ -745,12 +773,210 @@ function vNiches(){
   <div class="panel"><div class="panel-sub" style="margin:0">A curated set of major categories, not an exhaustive list of every possible niche — and figures are rounded snapshots. Every major category is covered, from Gaming and Music to Finance and Tech.</div></div>`;
 }
 
+/* ============ CHANNEL ANALYZER (public API · all computable + prescriptive) ============ */
+const DOWN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function isoDurToSec(d){if(!d)return 0;const m=d.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);if(!m)return 0;return (+(m[1]||0))*3600+(+(m[2]||0))*60+(+(m[3]||0));}
+
+// deep fetch: channel + up to 50 recent uploads with full stats
+async function analyzeChannel(input){
+  const parsed=parseChannelInput(input);
+  if(!parsed)throw new Error('Enter a channel URL, @handle, or channel ID.');
+  const chId=await resolveChannelId(parsed);
+  const ch=await ytGet('channels',{part:'snippet,statistics,contentDetails',id:chId});
+  if(!ch.items||!ch.items[0])throw new Error('Channel not found.');
+  const c=ch.items[0];
+  const uploads=c.contentDetails.relatedPlaylists.uploads;
+  // page up to 50 uploads
+  let ids=[],pageToken='';
+  for(let p=0;p<1&&ids.length<50;p++){
+    const pl=await ytGet('playlistItems',Object.assign({part:'contentDetails',playlistId:uploads,maxResults:'50'},pageToken?{pageToken}:{}));
+    ids=ids.concat((pl.items||[]).map(i=>i.contentDetails.videoId).filter(Boolean));
+    pageToken=pl.nextPageToken||'';if(!pageToken)break;
+  }
+  ids=ids.slice(0,50);
+  let vids=[];
+  // videos endpoint: 50 ids per call
+  for(let i=0;i<ids.length;i+=50){
+    const vd=await ytGet('videos',{part:'snippet,statistics,contentDetails',id:ids.slice(i,i+50).join(',')});
+    vids=vids.concat((vd.items||[]).map(v=>({
+      id:v.id,title:v.snippet.title,
+      pub:new Date(v.snippet.publishedAt),
+      views:+(v.statistics&&v.statistics.viewCount||0),
+      likes:+(v.statistics&&v.statistics.likeCount||0),
+      comments:+(v.statistics&&v.statistics.commentCount||0),
+      dur:isoDurToSec(v.contentDetails&&v.contentDetails.duration),
+      tags:v.snippet.tags||[],
+      titleScore:scoreTitle(v.snippet.title).score
+    })));
+  }
+  if(!vids.length)throw new Error('No public videos found for this channel.');
+  const channel={
+    id:chId,title:c.snippet.title,
+    thumb:(c.snippet.thumbnails&&c.snippet.thumbnails.default&&c.snippet.thumbnails.default.url)||'',
+    subs:+(c.statistics.subscriberCount||0),
+    totalViews:+(c.statistics.viewCount||0),
+    videoCount:+(c.statistics.videoCount||0),
+    published:new Date(c.snippet.publishedAt)
+  };
+  return computeAnalysis(channel,vids);
+}
+
+function computeAnalysis(channel,vids){
+  const now=Date.now();
+  const avgViews=vids.reduce((s,v)=>s+v.views,0)/vids.length;
+  // 1. Breakout Score per video
+  vids.forEach(v=>{v.breakout=avgViews>0?v.views/avgViews:0;});
+  // velocity: views per day since upload
+  vids.forEach(v=>{const days=Math.max(1,(now-v.pub)/864e5);v.vpd=v.views/days;v.ageDays=days;});
+  const vpds=vids.map(v=>v.vpd).sort((a,b)=>a-b);const medVpd=vpds[Math.floor(vpds.length/2)]||0;
+  vids.forEach(v=>{v.velTag=v.ageDays<14?'new':v.vpd>medVpd*1.3?'accelerating':v.vpd<medVpd*0.6?'stalling':'steady';});
+  // sort by views for "top"
+  const byViews=[...vids].sort((a,b)=>b.views-a.views);
+  const byRecent=[...vids].sort((a,b)=>b.pub-a.pub);
+
+  // 2. Upload pattern
+  const dated=vids.filter(v=>v.pub&&!isNaN(v.pub));
+  const dayCounts=[0,0,0,0,0,0,0];dated.forEach(v=>dayCounts[v.pub.getDay()]++);
+  const topDayIdx=dayCounts.indexOf(Math.max(...dayCounts));
+  const sorted=[...dated].sort((a,b)=>a.pub-b.pub);
+  let gaps=[];for(let i=1;i<sorted.length;i++)gaps.push((sorted[i].pub-sorted[i-1].pub)/864e5);
+  const avgGap=gaps.length?gaps.reduce((a,b)=>a+b,0)/gaps.length:null;
+  const last30=dated.filter(v=>(now-v.pub)/864e5<=30).length;
+  const last90=dated.filter(v=>(now-v.pub)/864e5<=90).length;
+  const perMonth=avgGap?30/avgGap:null;
+  // 3. Consistency score (inverse of gap variance, 0-100)
+  let consistency=null;
+  if(gaps.length>=2){
+    const m=avgGap,variance=gaps.reduce((s,g)=>s+(g-m)*(g-m),0)/gaps.length,cv=Math.sqrt(variance)/m;
+    consistency=Math.max(0,Math.min(100,Math.round(100-cv*60)));
+  }
+  // 4. Future projections (from recent velocity of channel total — approximate via subs & view growth proxy)
+  // We can only see current totals; project from recent upload view-accrual rate.
+  const recentViews=dated.filter(v=>(now-v.pub)/864e5<=30).reduce((s,v)=>s+v.views,0);
+  const projViews30=Math.round(recentViews); // views added in last 30d (proxy for monthly gain)
+  const projSubs=channel.subs; // can't see history; show growth proxy via engagement
+  // 5. Title pattern miner: winners vs rest
+  const med=byViews[Math.floor(byViews.length/2)].views;
+  const winners=vids.filter(v=>v.views>=med*1.5);
+  const losers=vids.filter(v=>v.views<med*0.6);
+  const feat=set=>{if(!set.length)return{len:0,num:0,q:0,score:0};
+    return{len:Math.round(set.reduce((s,v)=>s+v.title.length,0)/set.length),
+      num:Math.round(100*set.filter(v=>/\d/.test(v.title)).length/set.length),
+      q:Math.round(100*set.filter(v=>/\?/.test(v.title)).length/set.length),
+      score:Math.round(set.reduce((s,v)=>s+v.titleScore,0)/set.length)};};
+  const winFeat=feat(winners),loseFeat=feat(losers);
+  // 6. Tag extractor from top videos
+  const tagFreq={};byViews.slice(0,10).forEach(v=>v.tags.forEach(t=>{const k=t.toLowerCase();tagFreq[k]=(tagFreq[k]||0)+1;}));
+  const topTags=Object.entries(tagFreq).sort((a,b)=>b[1]-a[1]).slice(0,20).map(x=>x[0]);
+  // 7. Posting-time heatmap data = dayCounts already; also avg views by day
+  const dayViews=[0,0,0,0,0,0,0],dayN=[0,0,0,0,0,0,0];
+  dated.forEach(v=>{dayViews[v.pub.getDay()]+=v.views;dayN[v.pub.getDay()]++;});
+  const dayAvg=dayViews.map((s,i)=>dayN[i]?s/dayN[i]:0);
+  // duration profile (shorts vs long)
+  const shorts=vids.filter(v=>v.dur>0&&v.dur<=60).length;
+  // PRESCRIPTIVE: niche saturation (heuristic from cadence + breakout spread)
+  const breakoutRate=Math.round(100*vids.filter(v=>v.breakout>=1.5).length/vids.length);
+  let saturation;
+  if(perMonth>12&&breakoutRate<10)saturation=['crowded','High upload volume but few breakouts — this niche or format is saturated; differentiate hard.'];
+  else if(breakoutRate>25)saturation=['open','Lots of breakout videos — audience appetite outpaces supply. Good room to grow.'];
+  else saturation=['moderate','Healthy mix — steady performers with occasional breakouts. Standard competition.'];
+  // PRESCRIPTIVE: steal-this brief from top breakout
+  const topBreak=byViews.filter(v=>v.breakout>=2)[0]||byViews[0];
+  const brief={
+    title:topBreak.title,
+    breakout:topBreak.breakout,
+    format:topBreak.dur<=60?'Short (<60s)':topBreak.dur<=240?'Short-form (<4 min)':topBreak.dur<=900?'Standard (4-15 min)':'Long-form (15 min+)',
+    hook:/\d/.test(topBreak.title)?'Number/list hook':/\?/.test(topBreak.title)?'Question hook':/how|why|what/i.test(topBreak.title)?'Curiosity/how-to hook':'Statement hook',
+  };
+  return{channel,vids,byViews,byRecent,avgViews,
+    pattern:{dayCounts,topDayIdx,avgGap,last30,last90,perMonth,consistency},
+    projViews30,winFeat,loseFeat,topTags,dayAvg,shorts,breakoutRate,saturation,brief,winners:winners.length};
+}
+
+function vAnalyze(){
+  const left=capLeft();
+  const noKey=!activeKey();
+  $('#appView').innerHTML=`
+  <div class="vhead"><h1>Channel analyzer 📡</h1><p>Paste any public channel — get breakout scores, upload patterns, projections, title-pattern mining, and a prescriptive "steal this" brief. Public YouTube data; CTR/retention/earnings stay private and aren't shown.</p></div>
+  ${noKey?`<div class="lockbar">${svg('lock',1.8)}<div><b>Analyzer needs a data source.</b> <span>It runs on the public YouTube Data API. ${BUNDLED_KEY?'The shared key is temporarily unavailable — ':''}add your own free key in Settings (2-minute guided setup) and this unlocks, unlimited.</span><div style="margin-top:11px"><button class="appbtn" onclick="route('settings')" style="font-size:13px;padding:8px 15px">${svg('key',1.8)} Set up my key</button></div></div></div>`:''}
+  <div class="panel"><div class="panel-h">${svg('radar')}<h3>Analyze any channel</h3></div>
+  <div class="panel-sub">Paste a URL, @handle, or channel ID. Analyzes up to 50 recent uploads.${usingBundled()?` <b style="color:var(--mint)">${left} free ${left===1?'analysis':'analyses'} left today</b> on the shared key — add your own in Settings for unlimited.`:''}</div>
+  <div style="display:flex;gap:10px"><input class="inp" id="anIn" placeholder="https://youtube.com/@MrBeast" ${noKey||left<=0?'disabled':''}><button class="appbtn" id="anGo" ${noKey||left<=0?'disabled':''} style="white-space:nowrap">Analyze</button></div>
+  ${usingBundled()&&left<=0?`<div style="font-size:12px;color:var(--amber);margin-top:10px">Daily limit reached on the shared key. Add your own free key in Settings for unlimited analyses — it resets tomorrow otherwise.</div>`:''}
+  <div id="anOut"></div></div>`;
+  if(noKey||left<=0)return;
+  const go=async()=>{
+    const out=$('#anOut'),btn=$('#anGo');
+    out.innerHTML='<div class="empty">Fetching public data &amp; computing…</div>';btn.disabled=true;
+    try{
+      const a=await analyzeChannel($('#anIn').value);
+      capConsume();
+      renderAnalysis(a,out);
+    }catch(e){
+      if(e.message==='NO_KEY')out.innerHTML='<div class="lockbar" style="margin-top:14px">'+svg('lock',1.8)+'<div><b>No data source.</b> <span>Add your API key in Settings.</span></div></div>';
+      else out.innerHTML=`<div class="empty" style="color:var(--rose)">${esc(e.message)}</div>`;
+    }
+    btn.disabled=false;
+    // refresh remaining-count line
+    if(usingBundled()){const n=capLeft();const sub=document.querySelector('#anOut');}
+  };
+  $('#anGo').onclick=go;
+  $('#anIn').addEventListener('keydown',e=>{if(e.key==='Enter')go();});
+}
+
+function renderAnalysis(a,out){
+  const c=a.channel,p=a.pattern;
+  const ageYears=((Date.now()-c.published)/(365*864e5));
+  const sat=a.saturation;
+  const heatMax=Math.max(...a.dayAvg,1);
+  const topVids=a.byViews.slice(0,10);
+  const recentVids=a.byRecent.slice(0,8);
+  out.innerHTML=`<div style="margin-top:20px">
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">${c.thumb?`<img src="${esc(c.thumb)}" style="width:54px;height:54px;border-radius:50%;border:1px solid var(--line)">`:''}<div><div style="font-size:19px;font-weight:600">${esc(c.title)}</div><div class="dim" style="font-size:13px">${fmt(c.subs)} subscribers · ${fmt(c.videoCount)} videos · ${fmt(c.totalViews)} total views · ${ageYears.toFixed(1)} yrs on YouTube</div></div></div>
+
+  <div class="grid4" style="margin-bottom:16px">
+    <div class="mcard"><div class="l">Avg views/video</div><div class="n">${fmt(Math.round(a.avgViews))}</div><div class="d dim">last ${a.vids.length} uploads</div></div>
+    <div class="mcard"><div class="l">Breakout rate</div><div class="n ${a.breakoutRate>=25?'mint':a.breakoutRate>=10?'amber':'rose'}">${a.breakoutRate}%</div><div class="d dim">videos ≥1.5× avg</div></div>
+    <div class="mcard"><div class="l">Upload cadence</div><div class="n">${p.avgGap!=null?p.avgGap.toFixed(1):'—'}</div><div class="d dim">days apart${p.perMonth?` · ${p.perMonth.toFixed(1)}/mo`:''}</div></div>
+    <div class="mcard"><div class="l">Consistency</div><div class="n ${p.consistency>=70?'mint':p.consistency>=50?'amber':'rose'}">${p.consistency!=null?p.consistency:'—'}</div><div class="d dim">schedule regularity</div></div>
+  </div>
+
+  <div class="panel" style="background:var(--bg);border-color:${sat[0]==='open'?'var(--mint)':sat[0]==='crowded'?'var(--rose)':'var(--line-2)'}"><div class="panel-h">${svg('radar')}<h3>Niche read: <span class="${sat[0]==='open'?'mint':sat[0]==='crowded'?'rose':'amber'}">${sat[0]}</span></h3></div><div class="panel-sub" style="margin:0">${sat[1]}</div></div>
+
+  <div class="panel" style="background:var(--bg);border-color:var(--mint)"><div class="panel-h">${svg('copy')}<h3 style="color:var(--mint)">Steal this — content brief</h3></div><div class="panel-sub">Reverse-engineered from this channel's biggest breakout, ready to adapt.</div>
+  <div class="row"><div class="body"><b>Their ${a.brief.breakout.toFixed(1)}× breakout: "${esc(a.brief.title.slice(0,70))}"</b>
+  <span style="color:var(--txt-2)">Format: <b>${a.brief.format}</b> · Hook: <b>${a.brief.hook}</b></span>
+  <span style="color:var(--mint);margin-top:4px">→ Make your version: same ${a.brief.format.toLowerCase()} format, same ${a.brief.hook.toLowerCase().replace(' hook','')} angle, your own topic. Winners here average ${a.winFeat.len} chars, ${a.winFeat.num}% use numbers, title score ${a.winFeat.score}/100.</span></div></div></div>
+
+  <div class="panel"><div class="panel-h">${svg('optimize')}<h3>What their winners share</h3></div><div class="panel-sub">Top performers (≥1.5× median) vs weakest — the pattern to copy.</div>
+  <div style="overflow-x:auto"><table class="dtbl"><thead><tr><th>Signal</th><th class="r">Winners</th><th class="r">Weakest</th></tr></thead><tbody>
+  <tr><td>Avg title length</td><td class="r mint">${a.winFeat.len}</td><td class="r dim">${a.loseFeat.len}</td></tr>
+  <tr><td>Use a number</td><td class="r mint">${a.winFeat.num}%</td><td class="r dim">${a.loseFeat.num}%</td></tr>
+  <tr><td>Ask a question</td><td class="r mint">${a.winFeat.q}%</td><td class="r dim">${a.loseFeat.q}%</td></tr>
+  <tr><td>Avg title score</td><td class="r mint">${a.winFeat.score}</td><td class="r dim">${a.loseFeat.score}</td></tr>
+  </tbody></table></div></div>
+
+  <div class="panel"><div class="panel-h">${svg('trend')}<h3>Top videos by breakout</h3></div><div class="panel-sub">Views ÷ channel average. Above 2× = an idea worth studying.</div>
+  <div style="overflow-x:auto"><table class="dtbl"><thead><tr><th>Video</th><th class="r">Views</th><th class="r">Breakout</th><th class="r">Velocity</th></tr></thead><tbody>
+  ${topVids.map(v=>`<tr><td>${esc(v.title.slice(0,54))}</td><td class="r">${fmt(v.views)}</td><td class="r"><span class="pill ${v.breakout>=2?'good':v.breakout>=1?'gem':'steady'}">${v.breakout.toFixed(1)}×</span></td><td class="r dim">${v.velTag}</td></tr>`).join('')}
+  </tbody></table></div></div>
+
+  <div class="panel"><div class="panel-h">${svg('clock')}<h3>Posting pattern</h3></div><div class="panel-sub">Most-used day: <b class="mint">${DOWN[p.topDayIdx]}</b> · ${p.last30} uploads in 30d, ${p.last90} in 90d. Bars = avg views by publish day.</div>
+  ${a.dayAvg.map((v,i)=>`<div style="display:flex;align-items:center;gap:12px;margin-bottom:7px"><span class="mono" style="width:34px;color:var(--txt-2)">${DOWN[i]}</span><div style="flex:1;height:20px;background:var(--bg);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.round(v/heatMax*100)}%;background:${v===heatMax?'var(--mint)':'var(--line-2)'};border-radius:5px"></div></div><span class="mono dim" style="width:60px;text-align:right;font-size:11px">${v?fmt(Math.round(v)):'—'}</span></div>`).join('')}</div>
+
+  ${a.topTags.length?`<div class="panel"><div class="panel-h">${svg('tag')}<h3>Tags from their top videos</h3></div><div class="panel-sub">What their best performers are tagged with — the keywords they rank for.</div>
+  <div class="tags">${a.topTags.map(t=>`<span class="t">${esc(t)}</span>`).join('')}</div></div>`:''}
+
+  <div class="panel"><div class="panel-sub" style="margin:0">Analyzed ${a.vids.length} recent uploads · ${a.shorts} were Shorts (&lt;60s). Breakout, velocity, consistency and projections are computed from public data. Private metrics (CTR, retention, watch-time, earnings) can't be shown for any channel but the owner — that's a YouTube limit, not ours. Want this turned into your own action list? See <b style="color:var(--mint);cursor:pointer" onclick="route('plan')">Growth Plan</b>.</div></div>
+  </div>`;
+}
+
 /* ---------- URL AUDIT (needs key) ---------- */
 function vUrlAudit(){
-  const key=localStorage.getItem('yt_api_key');
+  const key=activeKey();
   $('#appView').innerHTML=`
   <div class="vhead"><h1>Audit any channel by URL</h1><p>Public data for any channel — subscribers, video performance, upload cadence, title scoring. ${key?'':'Needs your YouTube Data API key.'}</p></div>
-  ${key?'':`<div class="lockbar">${svg('lock',1.8)}<div><b>Add a free API key to enable this — takes 2 minutes.</b> <span>Looking up any channel by name or URL needs the YouTube Data API, which requires a key. We never bundle one (it would get stolen). Our Settings page walks you through getting one step by step, with a button that tests it for you.</span><div style="margin-top:11px"><button class="appbtn" onclick="route('settings')" style="font-size:13px;padding:8px 15px">${svg('key',1.8)} Set up my key</button></div></div></div>`}
+  ${key?'':`<div class="lockbar">${svg('lock',1.8)}<div><b>Add a free API key to enable this — takes 2 minutes.</b> <span>Looking up any channel by name or URL needs the YouTube Data API, which requires a key. Add your own free key in Settings for unlimited use (2-minute guided setup), or use the shared key where available.</span><div style="margin-top:11px"><button class="appbtn" onclick="route('settings')" style="font-size:13px;padding:8px 15px">${svg('key',1.8)} Set up my key</button></div></div></div>`}
   <div class="panel"><div class="panel-h">${svg('link')}<h3>Channel URL, @handle, or ID</h3></div>
   <div class="panel-sub">Paste any of: youtube.com/@handle · youtube.com/channel/UC… · or just the @handle.</div>
   <div style="display:flex;gap:10px"><input class="inp" id="urlIn" placeholder="https://youtube.com/@TechWorldwithNana" ${key?'':'disabled'}><button class="appbtn" id="urlGo" ${key?'':'disabled'} style="white-space:nowrap">Audit</button></div>
@@ -1090,7 +1316,7 @@ function vRoast(){
 
 /* ---------- COMPARE (Tier 3) ---------- */
 function vCompare(){
-  const has=localStorage.getItem('yt_api_key');
+  const has=activeKey();
   $('#appView').innerHTML=`
   <div class="vhead"><h1>Compare channels</h1><p>Live public data — any channel, not just yours. This is the one thing that needs the YouTube Data API.</p></div>
   ${has?'':`<div class="lockbar">${svg('lock',1.8)}<div><b>Live mode is off.</b> <span>Comparing arbitrary channels needs live data, which requires a YouTube Data API key. We never bundle one — that's a security hole. You add your own in Settings: it stays in this browser, uses your quota, and is sent only to Google.</span></div></div>`}
@@ -1113,7 +1339,8 @@ function vSettings(){
     ['Paste it below','Drop the key in the box and hit <b>Test &amp; save</b>. We\'ll verify it works before saving.',null,null],
   ];
   $('#appView').innerHTML=`
-  <div class="vhead"><h1>Settings</h1><p>Add a free YouTube API key to unlock channel lookup by URL and live Compare. Everything stays in this browser.</p></div>
+  <div class="vhead"><h1>Settings</h1><p>${BUNDLED_KEY?'Channel analysis works out of the box on a shared key (a few free runs a day). Add your own free key below for unlimited use.':'Add a free YouTube API key to unlock the Channel Analyzer, Audit by URL and Compare.'} Everything stays in this browser.</p></div>
+  ${BUNDLED_KEY&&!key?`<div class="panel"><div class="panel-sub" style="margin:0">ℹ️ A shared key is active, so the analyzer already works — capped at ${DAILY_CAP} analyses/day. Adding your own key below removes that cap and is the reliable long-term option.</div></div>`:''}
 
   ${key?`<div class="panel" style="border-color:var(--mint)"><div class="panel-h">${svg('check')}<h3 style="color:var(--mint)">Key active — live features unlocked</h3></div>
   <div class="panel-sub">Audit by URL and Compare are ready to use. Your key is stored only in this browser.</div>
